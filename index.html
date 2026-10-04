@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>MathyRoad</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="stage" data-state="menu">
+  <canvas id="c"></canvas>
+
+  <div id="hud">
+    <div id="score">0</div>
+    <div id="streak">Streak 0</div>
+  </div>
+  <div id="bestHud">Best 0</div>
+
+  <div id="mathPanel" hidden>
+    <div id="problem">1 + 1 = ?</div>
+    <div id="answers">
+      <button class="ans" data-i="0"><small>1</small><span></span></button>
+      <button class="ans" data-i="1"><small>2</small><span></span></button>
+      <button class="ans" data-i="2"><small>3</small><span></span></button>
+      <button class="ans" data-i="3"><small>4</small><span></span></button>
+    </div>
+  </div>
+
+  <div id="toast" hidden></div>
+  <div id="timer"><div id="timerFill"></div></div>
+
+  <div id="startScreen" class="screen">
+    <h1 class="title"><span>M</span><span>a</span><span>t</span><span>h</span><span>y</span><span>R</span><span>o</span><span>a</span><span>d</span></h1>
+    <p class="tag">Solve it to hop forward!</p>
+    <div class="bestline">High score: <b id="startBest">0</b></div>
+    <button id="playBtn" class="big">Play</button>
+    <p class="help">
+      <b>Keys:</b> A/D or &larr;/&rarr; to move, W or &uarr; for a math problem, 1&ndash;4 to answer.<br>
+      <b>Touch:</b> swipe or tap sides to move, tap above the pencil to hop, tap the answers.<br>
+      Don't stand still &mdash; the eraser is hungry!
+    </p>
+  </div>
+
+  <div id="overScreen" class="screen" hidden>
+    <h2 id="overTitle">Game Over</h2>
+    <p id="overCause" class="tag"></p>
+    <div class="stats">
+      <div><span id="overScore">0</span><small>Score</small></div>
+      <div><span id="overBest">0</span><small>Best</small></div>
+      <div><span id="overCorrect">0</span><small>Correct</small></div>
+    </div>
+    <p id="newBest" class="newbest" hidden>New high score!</p>
+    <button id="againBtn" class="big">Play Again</button>
+  </div>
+</div>
+<script src="game.js"></script>
+</body>
+</html>
