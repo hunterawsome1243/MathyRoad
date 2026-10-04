@@ -8,6 +8,7 @@ let ERASER_START = 7;       // eraser starts creeping in after this long
 const WRAP = COLS + 8;       // period of looping cars / logs (in tiles)
 const TRAIN_LEN = 15;
 let MAX_MOVES = 10, START_MOVES = 3;
+const TURNS_PER_ANSWER = 5;
 const BEST_KEY = 'mathyroad.best';
 const CAR_COLORS = ['#ff5a5f', '#ffb400', '#3ddc97', '#4cc9f0', '#b388ff', '#ff8fab', '#ff7b00'];
 
@@ -272,7 +273,7 @@ function closePanel() { panel.hidden = true; panelOpen = false; }
 function answer(i) {
   if (state !== 'play' || !panelOpen || i < 0 || i > 3) return;
   if (choices[i] === problem.ans) {
-    moves = Math.min(MAX_MOVES, moves + 1);
+    moves = Math.min(MAX_MOVES, moves + TURNS_PER_ANSWER);
     streak++; correctCount++;
     updateHud();
     if (moves >= MAX_MOVES) { closePanel(); toast('Turns full! Go hop!', 1400); }
