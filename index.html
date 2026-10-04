@@ -13,10 +13,13 @@
   <div id="hud">
     <div id="score">0</div>
     <div id="streak">Streak 0</div>
+    <div id="turns"><span id="turnsLabel">Turns 3/10</span><span id="pips"></span></div>
   </div>
   <div id="bestHud">Best 0</div>
 
   <div id="mathPanel" hidden>
+    <button id="closeBtn" aria-label="Close">&times;</button>
+    <div id="prompt">Answer to earn a turn</div>
     <div id="problem">1 + 1 = ?</div>
     <div id="answers">
       <button class="ans" data-i="0"><small>1</small><span></span></button>
@@ -26,17 +29,19 @@
     </div>
   </div>
 
+  <button id="earnBtn">+ Earn turns <small>E</small></button>
   <div id="toast" hidden></div>
   <div id="timer"><div id="timerFill"></div></div>
 
   <div id="startScreen" class="screen">
     <h1 class="title"><span>M</span><span>a</span><span>t</span><span>h</span><span>y</span><span>R</span><span>o</span><span>a</span><span>d</span></h1>
-    <p class="tag">Solve it to hop forward!</p>
+    <p class="tag">Earn turns with math, spend them to hop!</p>
     <div class="bestline">High score: <b id="startBest">0</b></div>
     <button id="playBtn" class="big">Play</button>
     <p class="help">
-      <b>Keys:</b> A/D or &larr;/&rarr; to move, W or &uarr; for a math problem, 1&ndash;4 to answer.<br>
-      <b>Touch:</b> swipe or tap sides to move, tap above the pencil to hop, tap the answers.<br>
+      Answer math problems to earn turns (store up to 10), then spend one turn per hop forward.<br>
+      <b>Keys:</b> A/D or &larr;/&rarr; to move sideways, W or &uarr; to hop (uses a turn), E to earn turns, 1&ndash;4 to answer.<br>
+      <b>Touch:</b> swipe or tap sides to move, tap above the pencil to hop, use the Earn turns button.<br>
       Don't stand still &mdash; the eraser is hungry!
     </p>
   </div>

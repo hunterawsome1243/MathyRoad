@@ -7,6 +7,7 @@ const IDLE_LIMIT = 8;        // seconds standing still before the eraser gets yo
 const ERASER_START = 3.5;    // eraser starts creeping in after this long
 const WRAP = COLS + 8;       // period of looping cars / logs (in tiles)
 const TRAIN_LEN = 15;
+const MAX_MOVES = 10, START_MOVES = 3;
 const BEST_KEY = 'mathyroad.best';
 const CAR_COLORS = ['#ff5a5f', '#ffb400', '#3ddc97', '#4cc9f0', '#b388ff', '#ff8fab', '#ff7b00'];
 
@@ -40,6 +41,7 @@ function saveBest(v) { try { localStorage.setItem(BEST_KEY, String(v)); } catch 
 const stage = $('stage'), canvas = $('c'), ctx = canvas.getContext('2d');
 const scoreEl = $('score'), streakEl = $('streak'), bestHud = $('bestHud');
 const panel = $('mathPanel'), problemEl = $('problem'), ansBtns = [...document.querySelectorAll('.ans')];
+const earnBtn = $('earnBtn'), turnsEl = $('turns'), turnsLabel = $('turnsLabel'), pipsEl = $('pips');
 const toastEl = $('toast'), timerFill = $('timerFill');
 const startScreen = $('startScreen'), overScreen = $('overScreen');
 
@@ -63,7 +65,7 @@ window.addEventListener('resize', resize);
 resize();
 
 // ---------- game state ----------
-let lanes, genR, player, camRow, score, streak, correctCount, best, idleT, time = 0;
+let moves = START_MOVES, lanes, genR, player, camRow, score, streak, correctCount, best, idleT, time = 0;
 let state = 'menu', dead = null, shake = 0, panelOpen = false, problem = null, choices = [];
 let overShown = false, overAt = 0, toastTimer = 0, warned = false, playerScreen = { x: 0, y: 0 };
 best = loadBest();
@@ -74,7 +76,7 @@ function resetWorld() {
   lanes = {};
   genR = -10;
   player = { row: 0, px: 4, offX: 0, offRow: 0, hopP: 1, fwd: false, sq: 0, cool: 0, face: 0 };
-  camRow = 0; score = 0; streak = 0; correctCount = 0; idleT = 0;
+  moves = START_MOVES; camRow = 0; score = 0; streak = 0; correctCount = 0; idleT = 0;
   dead = null; shake = 0; warned = false; overShown = false;
   closePanel();
   ensureLanes(30);
@@ -234,18 +236,31 @@ function closePanel() { panel.hidden = true; panelOpen = false; }
 function answer(i) {
   if (state !== 'play' || !panelOpen || i < 0 || i > 3) return;
   if (choices[i] === problem.ans) {
-    closePanel();
+    moves = Math.min(MAX_MOVES, moves + 1);
     streak++; correctCount++;
-    doForward();
     updateHud();
+    if (moves >= MAX_MOVES) { closePanel(); toast('Turns full! Go hop!', 1400); }
+    else {
+      openProblem();
+      panel.classList.remove('wrong', 'right');
+      void panel.offsetWidth;
+      panel.classList.add('right');
+    }
   } else {
     streak = 0;
     updateHud();
-    panel.classList.remove('wrong');
+    panel.classList.remove('wrong', 'right');
     void panel.offsetWidth;
     panel.classList.add('wrong');
     openProblem();
   }
+}
+
+function requestEarn() {
+  if (state !== 'play') return;
+  if (panelOpen) { closePanel(); return; }
+  if (moves >= MAX_MOVES) { toast('Turns are full (10)!'); return; }
+  openProblem();
 }
 ansBtns.forEach((b, i) => b.addEventListener('click', () => { answer(i); b.blur(); }));
 
@@ -268,10 +283,15 @@ function toast(msg, ms = 1200) {
 function treeAt(lane, col) { return lane.type === 'grass' && lane.trees[col]; }
 
 function requestForward() {
-  if (state !== 'play' || panelOpen) return;
+  if (state !== 'play') return;
   const next = lanes[player.row + 1];
   if (treeAt(next, clamp(Math.round(player.px), 0, COLS - 1))) { toast('A tree is in the way!'); shake = Math.max(shake, .12); return; }
-  openProblem();
+  if (moves <= 0) {
+    toast('Out of turns! Answer to earn more.', 1500);
+    if (!panelOpen) openProblem();
+    return;
+  }
+  doForward();
 }
 
 function doForward() {
@@ -285,7 +305,9 @@ function doForward() {
   player.row++;
   player.hopP = 0; player.fwd = true; player.cool = .1; player.sq = 0;
   score = player.row;
+  moves--;
   idleT = 0; warned = false;
+  updateHud();
 }
 
 function moveSide(dir) {
@@ -339,6 +361,12 @@ function updateHud() {
   scoreEl.textContent = score;
   streakEl.textContent = streak >= 3 ? `🔥 Streak ${streak}` : `Streak ${streak}`;
   streakEl.classList.toggle('hot', streak >= 3);
+  turnsLabel.textContent = `Turns ${moves}/${MAX_MOVES}`;
+  turnsEl.classList.toggle('low', moves === 0);
+  while (pipsEl.children.length < MAX_MOVES) pipsEl.appendChild(document.createElement('i'));
+  [...pipsEl.children].forEach((p, i) => p.classList.toggle('on', i < moves));
+  earnBtn.classList.toggle('pulse', moves === 0 && state === 'play');
+  earnBtn.disabled = moves >= MAX_MOVES;
   bestHud.textContent = 'Best ' + Math.max(best, score);
   $('startBest').textContent = best;
 }
@@ -691,6 +719,8 @@ window.addEventListener('keydown', e => {
   if (k === 'arrowleft' || k === 'a') { e.preventDefault(); moveSide(-1); }
   else if (k === 'arrowright' || k === 'd') { e.preventDefault(); moveSide(1); }
   else if (k === 'arrowup' || k === 'w') { e.preventDefault(); requestForward(); }
+  else if (k === 'e' || k === ' ') { e.preventDefault(); requestEarn(); }
+  else if (k === 'escape' && panelOpen) closePanel();
   else if (k >= '1' && k <= '4') answer(+k - 1);
 });
 
@@ -717,6 +747,8 @@ stage.addEventListener('pointerup', e => {
 });
 document.addEventListener('contextmenu', e => e.preventDefault());
 
+earnBtn.addEventListener('click', () => { requestEarn(); earnBtn.blur(); });
+$('closeBtn').addEventListener('click', closePanel);
 $('playBtn').addEventListener('click', start);
 $('againBtn').addEventListener('click', start);
 
