@@ -16,10 +16,11 @@
     <div id="turns"><span id="turnsLabel">Turns 3/10</span><span id="pips"></span></div>
   </div>
   <div id="bestHud">Best 0</div>
+  <div id="coinHud">Coins 0</div>
 
   <div id="mathPanel" hidden>
     <button id="closeBtn" aria-label="Close">&times;</button>
-    <div id="prompt">Answer to earn a turn</div>
+    <div id="prompt">Time frozen &middot; answer to earn a turn</div>
     <div id="problem">1 + 1 = ?</div>
     <div id="answers">
       <button class="ans" data-i="0"><small>1</small><span></span></button>
@@ -36,10 +37,12 @@
   <div id="startScreen" class="screen">
     <h1 class="title"><span>M</span><span>a</span><span>t</span><span>h</span><span>y</span><span>R</span><span>o</span><span>a</span><span>d</span></h1>
     <p class="tag">Earn turns with math, spend them to hop!</p>
-    <div class="bestline">High score: <b id="startBest">0</b></div>
+    <div class="bestline">High score: <b id="startBest">0</b> &nbsp;&middot;&nbsp; Coins: <b id="startCoins">0</b></div>
     <button id="playBtn" class="big">Play</button>
+    <button id="shopBtn" class="mid">Upgrade Shop</button>
     <p class="help">
-      Answer math problems to earn turns (store up to 10), then spend one turn per hop forward.<br>
+      Answer math problems to earn turns, then spend one turn per hop forward. Grab coins to buy upgrades.<br>
+      <b>Time freezes while a question is open</b> &mdash; you can still move and hop, so use it!<br>
       <b>Keys:</b> A/D or &larr;/&rarr; to move sideways, W or &uarr; to hop (uses a turn), E to earn turns, 1&ndash;4 to answer.<br>
       <b>Touch:</b> swipe or tap sides to move, tap above the pencil to hop, use the Earn turns button.<br>
       Don't stand still &mdash; the eraser is hungry!
@@ -53,9 +56,18 @@
       <div><span id="overScore">0</span><small>Score</small></div>
       <div><span id="overBest">0</span><small>Best</small></div>
       <div><span id="overCorrect">0</span><small>Correct</small></div>
+      <div><span id="overCoins">0</span><small>Coins</small></div>
     </div>
     <p id="newBest" class="newbest" hidden>New high score!</p>
     <button id="againBtn" class="big">Play Again</button>
+    <button id="shopBtn2" class="mid">Upgrade Shop</button>
+  </div>
+
+  <div id="shopScreen" class="screen" hidden>
+    <h2>Upgrade Shop</h2>
+    <div class="bestline">Coins: <b id="shopCoins">0</b></div>
+    <div id="shopList"></div>
+    <button id="shopBack" class="big">Back</button>
   </div>
 </div>
 <script src="game.js"></script>

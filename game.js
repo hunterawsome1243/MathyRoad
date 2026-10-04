@@ -3,11 +3,11 @@
 
 // ---------- constants ----------
 const COLS = 9, T = 48, W = COLS * T;
-const IDLE_LIMIT = 8;        // seconds standing still before the eraser gets you
-const ERASER_START = 3.5;    // eraser starts creeping in after this long
+let IDLE_LIMIT = 16;       // seconds standing still before the eraser gets you (upgradable)
+let ERASER_START = 7;       // eraser starts creeping in after this long
 const WRAP = COLS + 8;       // period of looping cars / logs (in tiles)
 const TRAIN_LEN = 15;
-const MAX_MOVES = 10, START_MOVES = 3;
+let MAX_MOVES = 10, START_MOVES = 3;
 const BEST_KEY = 'mathyroad.best';
 const CAR_COLORS = ['#ff5a5f', '#ffb400', '#3ddc97', '#4cc9f0', '#b388ff', '#ff8fab', '#ff7b00'];
 
@@ -37,11 +37,39 @@ function shade(hex, f) {
 function loadBest() { try { return parseInt(localStorage.getItem(BEST_KEY), 10) || 0; } catch (e) { return 0; } }
 function saveBest(v) { try { localStorage.setItem(BEST_KEY, String(v)); } catch (e) { /* ignore */ } }
 
+// ---------- save data & shop ----------
+const SAVE_KEY = 'mathyroad.save';
+const SHOP = [
+  { id: 'pocket', name: 'Bigger Pocket', desc: '+2 max stored turns', max: 5, base: 8, now: l => `Max turns ${10 + 2 * l}` },
+  { id: 'head', name: 'Head Start', desc: '+1 starting turn', max: 5, base: 6, now: l => `Start with ${3 + l}` },
+  { id: 'eraser', name: 'Slow Eraser', desc: '+20% eraser time', max: 5, base: 10, now: l => `Eraser time x${(1 + .2 * l).toFixed(1)}` },
+  { id: 'gold', name: 'Gold Rush', desc: '+1 coin value', max: 5, base: 12, now: l => `Coin worth ${1 + l}` }
+];
+function loadSave() {
+  try {
+    const s = JSON.parse(localStorage.getItem(SAVE_KEY));
+    if (s && typeof s === 'object') return { coins: +s.coins || 0, up: Object.assign({}, s.up) };
+  } catch (e) { /* ignore */ }
+  return { coins: 0, up: {} };
+}
+function persist() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) { /* ignore */ } }
+let save = loadSave();
+const lvl = id => save.up[id] || 0;
+const upCost = it => Math.round(it.base * Math.pow(1.7, lvl(it.id)));
+function applyUpgrades() {
+  MAX_MOVES = 10 + 2 * lvl('pocket');
+  START_MOVES = 3 + lvl('head');
+  const mul = 1 + .2 * lvl('eraser');
+  IDLE_LIMIT = 16 * mul;
+  ERASER_START = 7 * mul;
+}
+
 // ---------- DOM ----------
 const stage = $('stage'), canvas = $('c'), ctx = canvas.getContext('2d');
 const scoreEl = $('score'), streakEl = $('streak'), bestHud = $('bestHud');
 const panel = $('mathPanel'), problemEl = $('problem'), ansBtns = [...document.querySelectorAll('.ans')];
 const earnBtn = $('earnBtn'), turnsEl = $('turns'), turnsLabel = $('turnsLabel'), pipsEl = $('pips');
+const coinHud = $('coinHud'), shopScreen = $('shopScreen');
 const toastEl = $('toast'), timerFill = $('timerFill');
 const startScreen = $('startScreen'), overScreen = $('overScreen');
 
@@ -67,12 +95,15 @@ resize();
 // ---------- game state ----------
 let moves = START_MOVES, lanes, genR, player, camRow, score, streak, correctCount, best, idleT, time = 0;
 let state = 'menu', dead = null, shake = 0, panelOpen = false, problem = null, choices = [];
+let runCoins = 0, floats = [];
 let overShown = false, overAt = 0, toastTimer = 0, warned = false, playerScreen = { x: 0, y: 0 };
 best = loadBest();
 
 function setState(s) { state = s; stage.dataset.state = s; }
 
 function resetWorld() {
+  applyUpgrades();
+  runCoins = 0; floats = [];
   lanes = {};
   genR = -10;
   player = { row: 0, px: 4, offX: 0, offRow: 0, hopP: 1, fwd: false, sq: 0, cool: 0, face: 0 };
@@ -113,6 +144,11 @@ function genLane(r) {
     lane = type === 'grass' ? makeGrass(r, rnd(.12, .28))
       : type === 'road' ? makeRoad(r)
       : type === 'river' ? makeRiver(r) : makeRail(r);
+  }
+  if (r >= 3 && (lane.type === 'grass' || lane.type === 'road') && Math.random() < .25) {
+    const free = [];
+    for (let c = 0; c < COLS; c++) if (lane.type !== 'grass' || !lane.trees[c]) free.push(c);
+    if (free.length) lane.coin = pick(free);
   }
   lane.r = r;
   const prev = lanes[r - 1];
@@ -350,6 +386,7 @@ function showOver() {
   $('overScore').textContent = score;
   $('overBest').textContent = best;
   $('overCorrect').textContent = correctCount;
+  $('overCoins').textContent = runCoins;
   $('newBest').hidden = !(score > 0 && score === best && score > bestAtStart);
   overScreen.hidden = false;
   overAt = performance.now();
@@ -364,21 +401,25 @@ function updateHud() {
   turnsLabel.textContent = `Turns ${moves}/${MAX_MOVES}`;
   turnsEl.classList.toggle('low', moves === 0);
   while (pipsEl.children.length < MAX_MOVES) pipsEl.appendChild(document.createElement('i'));
+  while (pipsEl.children.length > MAX_MOVES) pipsEl.lastChild.remove();
   [...pipsEl.children].forEach((p, i) => p.classList.toggle('on', i < moves));
   earnBtn.classList.toggle('pulse', moves === 0 && state === 'play');
   earnBtn.disabled = moves >= MAX_MOVES;
+  coinHud.textContent = '\ud83e\ude99 ' + save.coins;
+  $('startCoins').textContent = save.coins;
   bestHud.textContent = 'Best ' + Math.max(best, score);
   $('startBest').textContent = best;
 }
 
 function update(dt) {
   time += dt;
+  const wdt = state === 'play' && panelOpen ? 0 : dt;   // time freezes while a question is open
   if (toastTimer > 0 && (toastTimer -= dt) <= 0) toastEl.hidden = true;
   if (shake > 0) shake = Math.max(0, shake - dt);
 
   ensureLanes(Math.ceil(camRow) + Math.ceil(H / T) + 4);
   const lo = Math.floor(camRow) - 14, hi = Math.floor(camRow) + 18;
-  for (let r = lo; r <= hi; r++) if (lanes[r]) updateLane(lanes[r], dt);
+  for (let r = lo; r <= hi; r++) if (lanes[r]) updateLane(lanes[r], wdt);
 
   // player animation
   if (player.hopP < 1) {
@@ -396,10 +437,22 @@ function update(dt) {
   if (state !== 'play') { updateTimerBar(); return; }
 
   // eraser timer
-  idleT += dt;
+  idleT += wdt;
   if (idleT >= ERASER_START && !warned) { warned = true; toast('Hop! The eraser is coming!', 1500); }
   if (idleT >= IDLE_LIMIT) { die('erased'); updateTimerBar(); return; }
   updateTimerBar();
+
+  // coins
+  for (const f of floats) f.t += dt;
+  floats = floats.filter(f => f.t < .9);
+  const cl = lanes[player.row];
+  if (cl.coin != null && !cl.taken && Math.round(player.px) === cl.coin) {
+    cl.taken = true;
+    const v = 1 + lvl('gold');
+    save.coins += v; runCoins += v; persist();
+    floats.push({ row: player.row, x: player.px, t: 0, text: '+' + v });
+    updateHud();
+  }
 
   // hazards
   const l = lanes[player.row];
@@ -412,7 +465,7 @@ function update(dt) {
   } else if (l.type === 'rail') {
     if (l.state === 'pass' && left < l.x + TRAIN_LEN && right > l.x) { die('train'); return; }
   } else if (l.type === 'river') {
-    player.px += l.dir * l.speed * dt;   // ride along with the water
+    player.px += l.dir * l.speed * wdt;   // ride along with the water
     const cx = player.px + .5;
     let onLog = false;
     for (const o of l.objs) {
@@ -427,7 +480,7 @@ function update(dt) {
 function updateTimerBar() {
   const p = clamp(idleT / IDLE_LIMIT, 0, 1);
   timerFill.style.width = ((1 - p) * 100) + '%';
-  timerFill.style.background = p < .45 ? '#4cd964' : p < .7 ? '#ffcc00' : '#ff3b30';
+  timerFill.style.background = panelOpen && state === 'play' ? '#7cc8ff' : p < .45 ? '#4cd964' : p < .7 ? '#ffcc00' : '#ff3b30';
 }
 
 // ---------- drawing ----------
@@ -572,6 +625,20 @@ function drawSignal(l, y) {
   ctx.beginPath(); ctx.arc(x - 0, y - 14, 4, 0, 7); ctx.fill();
 }
 
+function drawCoin(c, y) {
+  const cx = c * T + T / 2, cy = y + 4 + Math.sin(time * 4 + c) * 2;
+  ctx.fillStyle = 'rgba(0,0,0,.2)';
+  ctx.beginPath(); ctx.ellipse(cx, y + 17, 9, 3, 0, 0, 7); ctx.fill();
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.scale(Math.max(.18, Math.abs(Math.cos(time * 3 + c))), 1);
+  ctx.fillStyle = '#ffcf33'; ctx.strokeStyle = '#c98f00'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.arc(0, 0, 10, 0, 7); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#ffe680';
+  ctx.beginPath(); ctx.arc(0, 0, 5, 0, 7); ctx.fill();
+  ctx.restore();
+}
+
 function drawPencil(cx, gy, sx, sy, face, lift) {
   // shadow
   const sh = 1 - Math.min(.5, lift / 60);
@@ -656,7 +723,7 @@ function drawEraser(pY) {
   ctx.fillStyle = '#ffb5c4';
   for (let i = 0; i < 12; i++) ctx.fillRect(i * 41 + (i * 17) % 13, top - 30 - (i * 7) % 11, 6, 5);
   ctx.restore();
-  if (state === 'play' && idleT > ERASER_START && Math.floor(time * 4) % 2 === 0) {
+  if (state === 'play' && !panelOpen && idleT > ERASER_START && Math.floor(time * 4) % 2 === 0) {
     ctx.fillStyle = '#fff'; ctx.strokeStyle = '#d6203a'; ctx.lineWidth = 5;
     ctx.font = '900 30px "Trebuchet MS", sans-serif'; ctx.textAlign = 'center';
     ctx.strokeText('KEEP MOVING!', W / 2, pY + T * 3.2);
@@ -688,9 +755,24 @@ function draw() {
       drawSignal(l, y);
       if (l.state === 'pass') drawTrain(l, y);
     }
+    if (l.coin != null && !l.taken) drawCoin(l.coin, y);
     if (r === player.row) drawPlayer(pY + (camRow - pr.row) * T, pr);
   }
   drawEraser(pY);
+  for (const f of floats) {
+    ctx.globalAlpha = 1 - f.t / .9;
+    ctx.fillStyle = '#ffe066'; ctx.strokeStyle = '#8a5a00'; ctx.lineWidth = 4;
+    ctx.font = '900 24px "Trebuchet MS", sans-serif'; ctx.textAlign = 'center';
+    const fy = yOf(f.row) - 30 - f.t * 40;
+    ctx.strokeText(f.text, f.x * T + T / 2, fy); ctx.fillText(f.text, f.x * T + T / 2, fy);
+    ctx.globalAlpha = 1;
+  }
+  if (panelOpen && state === 'play') {
+    ctx.fillStyle = 'rgba(120,190,255,.16)'; ctx.fillRect(-20, -20, W + 40, H + 40);
+    ctx.fillStyle = '#fff'; ctx.strokeStyle = '#2b6fb8'; ctx.lineWidth = 5;
+    ctx.font = '900 22px "Trebuchet MS", sans-serif'; ctx.textAlign = 'center';
+    ctx.strokeText('TIME FROZEN', W / 2, pY + T * 3.2); ctx.fillText('TIME FROZEN', W / 2, pY + T * 3.2);
+  }
   ctx.restore();
 }
 
@@ -704,9 +786,39 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 
+// ---------- shop ui ----------
+function renderShop() {
+  $('shopCoins').textContent = save.coins;
+  const list = $('shopList');
+  list.textContent = '';
+  for (const it of SHOP) {
+    const l = lvl(it.id), maxed = l >= it.max, c = upCost(it);
+    const row = document.createElement('div'); row.className = 'shopRow';
+    const info = document.createElement('div'); info.className = 'info';
+    const nm = document.createElement('b'); nm.textContent = it.name;
+    const ds = document.createElement('span'); ds.textContent = it.desc + ' \u00b7 ' + it.now(l);
+    const pp = document.createElement('div'); pp.className = 'lv';
+    for (let i = 0; i < it.max; i++) { const p = document.createElement('i'); if (i < l) p.className = 'on'; pp.appendChild(p); }
+    info.append(nm, ds, pp);
+    const btn = document.createElement('button'); btn.className = 'buy';
+    btn.textContent = maxed ? 'MAX' : '\ud83e\ude99 ' + c;
+    btn.disabled = maxed || save.coins < c;
+    btn.addEventListener('click', () => {
+      if (maxed || save.coins < c) return;
+      save.coins -= c; save.up[it.id] = l + 1; persist();
+      renderShop(); updateHud();
+    });
+    row.append(info, btn);
+    list.appendChild(row);
+  }
+}
+function openShop() { renderShop(); shopScreen.hidden = false; }
+function closeShop() { shopScreen.hidden = true; applyUpgrades(); }
+
 // ---------- input ----------
 window.addEventListener('keydown', e => {
   const k = e.key.toLowerCase();
+  if (!shopScreen.hidden) { if (k === 'escape') closeShop(); return; }
   const menuOpen = !startScreen.hidden || !overScreen.hidden;
   if (menuOpen) {
     if ((k === 'enter' || k === ' ') && (!startScreen.hidden || performance.now() - overAt > 600)) {
@@ -749,6 +861,9 @@ document.addEventListener('contextmenu', e => e.preventDefault());
 
 earnBtn.addEventListener('click', () => { requestEarn(); earnBtn.blur(); });
 $('closeBtn').addEventListener('click', closePanel);
+$('shopBtn').addEventListener('click', openShop);
+$('shopBtn2').addEventListener('click', openShop);
+$('shopBack').addEventListener('click', closeShop);
 $('playBtn').addEventListener('click', start);
 $('againBtn').addEventListener('click', start);
 
