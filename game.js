@@ -320,6 +320,7 @@ function treeAt(lane, col) { return lane.type === 'grass' && lane.trees[col]; }
 
 function requestForward() {
   if (state !== 'play') return;
+  if (panelOpen) { toast('Answer or close the question first!'); return; }
   const next = lanes[player.row + 1];
   if (treeAt(next, clamp(Math.round(player.px), 0, COLS - 1))) { toast('A tree is in the way!'); shake = Math.max(shake, .12); return; }
   if (moves <= 0) {
@@ -347,7 +348,7 @@ function doForward() {
 }
 
 function moveSide(dir) {
-  if (state !== 'play' || player.cool > 0) return;
+  if (state !== 'play' || player.cool > 0 || panelOpen) return;
   const l = lanes[player.row];
   let tx;
   if (l.type === 'river') {
